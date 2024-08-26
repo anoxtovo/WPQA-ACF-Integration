@@ -2,76 +2,81 @@
 /*
 Plugin Name: WPQA ACF Integration
 Description: Integrates WPQA plugin with ACF to add custom fields to the question form.
-Version: 1.4.1
+Version: 1.4.6
 Author: Thumula Basura Suraweera
 Author URI: https://www.thumulabasura.com/wpqa-acf-integration
 License: GPLv2
 */
 
-// Hook into the WPQA form display to inject ACF fields dynamically
-function wpqa_custom_inject_acf_fields($out, $question_sort_option, $question_sort, $sort_key, $sort_value, $type, $question_add, $question_edit, $get_question) {
-    // Specify the ACF field group key
-    $field_group_key = 'group_1234567890abcdef'; // Replace with your actual field group key
-
-    if ($sort_key == "title_question") {
-        if (function_exists('acf_get_fields')) {
-            $fields = acf_get_fields($field_group_key);
-
-            if ($fields) {
-                foreach ($fields as $field) {
-                    $field_name = $field['name'];
-                    $field_value = ($type == "edit" && isset($question_edit[$field_name])) ? esc_attr($question_edit[$field_name]) : esc_attr(get_field($field_name, $get_question));
-                    
-                    $out .= '<div class="wpqa_custom_field">
-                        <label for="'.esc_attr($field['name']).'">'.esc_html($field['label']).'<span class="required">*</span></label>';
-                    
-                    // Handle different field types (e.g., text, date, url)
-                    switch ($field['type']) {
-                        case 'text':
-                        case 'url':
-                            $out .= '<input type="'.esc_attr($field['type']).'" name="'.esc_attr($field['name']).'" id="'.esc_attr($field['name']).'" class="form-control" value="'.esc_attr($field_value).'">';
-                            break;
-                        case 'datetime_picker':
-                            $out .= '<input type="datetime-local" name="'.esc_attr($field['name']).'" id="'.esc_attr($field['name']).'" class="form-control" value="'.esc_attr($field_value).'">';
-                            break;
-                        // Add more cases as needed for other field types
-                        default:
-                            $out .= '<input type="text" name="'.esc_attr($field['name']).'" id="'.esc_attr($field['name']).'" class="form-control" value="'.esc_attr($field_value).'">';
-                            break;
-                    }
-
-                    $out .= '<span class="form-description">'.esc_html($field['instructions']).'</span></div>';
-                }
-            }
-        }
-    }
-
-    return $out;
+// Exit if accessed directly
+if (!defined('ABSPATH')) {
+    exit;
 }
-add_filter('wpqa_question_sort', 'wpqa_custom_inject_acf_fields', 10, 8);
 
-// Save ACF fields when the question is saved
-function wpqa_custom_save_acf_fields($post_id) {
-    if (get_post_type($post_id) != 'question') {
+// Define plugin constants
+define('WPQA_ACF_INTEGRATION_VERSION', '1.4.6');
+define('WPQA_ACF_INTEGRATION_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('WPQA_ACF_INTEGRATION_PLUGIN_URL', plugin_dir_url(__FILE__));
+
+// Include necessary files
+require_once WPQA_ACF_INTEGRATION_PLUGIN_DIR . 'includes/admin-page.php';
+
+// Hook for plugin activation
+register_activation_hook(__FILE__, 'wpqa_acf_integration_activate');
+
+function wpqa_acf_integration_activate() {
+    // Set default options on activation
+    add_option('wpqa_acf_enable_integration', 0);
+}
+
+// Hook for adding admin menu
+add_action('admin_menu', 'wpqa_acf_integration_add_admin_menu');
+
+function wpqa_acf_integration_add_admin_menu() {
+    add_menu_page(
+        'WPQA ACF Integration',
+        'WPQA ACF',
+        'manage_options',
+        'wpqa-acf-integration',
+        'wpqa_acf_integration_admin_page',
+        'dashicons-format-aside',
+        30
+    );
+}
+
+// Enqueue scripts and styles
+add_action('admin_enqueue_scripts', 'wpqa_acf_integration_enqueue_admin_scripts');
+
+function wpqa_acf_integration_enqueue_admin_scripts($hook) {
+    if ('toplevel_page_wpqa-acf-integration' !== $hook) {
         return;
     }
 
-    // Specify the ACF field group key
-    $field_group_key = 'group_1234567890abcdef'; // Replace with your actual field group key
+    // Enqueue Bootstrap CSS
+    wp_enqueue_style('bootstrap', WPQA_ACF_INTEGRATION_PLUGIN_URL . 'lib/css/bootstrap.min.css', array(), '5.3.0');
 
-    if (function_exists('acf_get_fields')) {
-        $fields = acf_get_fields($field_group_key);
+    // Enqueue Bootstrap JS
+    wp_enqueue_script('bootstrap', WPQA_ACF_INTEGRATION_PLUGIN_URL . 'lib/js/bootstrap.bundle.min.js', array('jquery'), '5.3.0', true);
+}
 
-        if ($fields) {
-            foreach ($fields as $field) {
-                $field_name = $field['name'];
+// Hook for integrating ACF fields with WPQA
+add_action('wpqa_add_question_fields', 'wpqa_acf_integration_add_fields');
 
-                if (isset($_POST[$field_name])) {
-                    update_field($field_name, sanitize_text_field($_POST[$field_name]), $post_id);
-                }
-            }
-        }
+function wpqa_acf_integration_add_fields() {
+    // Check if integration is enabled
+    if (get_option('wpqa_acf_enable_integration', 0)) {
+        // Add ACF fields to WPQA question form
+        // This function will be implemented later
     }
 }
 
-add_action('save_post_question', 'wpqa_custom_save_acf_fields');
+// Hook for saving ACF fields with WPQA question
+add_action('wpqa_add_question', 'wpqa_acf_integration_save_fields', 10, 2);
+
+function wpqa_acf_integration_save_fields($question_id, $values) {
+    // Check if integration is enabled
+    if (get_option('wpqa_acf_enable_integration', 0)) {
+        // Save ACF fields data
+        // This function will be implemented later
+    }
+}
