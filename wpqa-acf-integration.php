@@ -2,7 +2,7 @@
 /*
 Plugin Name: WPQA ACF Integration
 Description: Integrates WPQA plugin with ACF to add custom fields to the question form.
-Version: 1.0
+Version: 1.1
 Author: Thumula Basura Suraweera
 Author URI: https://www.thumulabasura.com/wpqa-acf-integration
 License: GPLv2
@@ -10,6 +10,11 @@ License: GPLv2
 
 // Hook into the WPQA form display to inject ACF fields
 function wpqa_acf_inject_custom_fields($out, $type, $question_add, $question_edit, $get_question) {
+    // Ensure that we are working with the 'question' post type
+    if (get_post_type($get_question) != 'question') {
+        return $out;
+    }
+
     if (function_exists('get_field')) {
         $offer_url = get_field('offer_url', $get_question);
         $start_time = get_field('start_time', $get_question);
@@ -43,17 +48,24 @@ add_filter('wpqa_question_sort', 'wpqa_acf_inject_custom_fields', 10, 5);
 
 // Save ACF fields when the question is saved
 function wpqa_acf_save_custom_fields($post_id) {
-    if (!isset($_POST['acf_offer_url'], $_POST['acf_start_time'], $_POST['acf_expire_time'])) {
+    // Ensure that we are working with the 'question' post type
+    if (get_post_type($post_id) != 'question') {
         return;
     }
 
     // Save the Offer URL
-    update_field('offer_url', esc_url_raw($_POST['acf_offer_url']), $post_id);
+    if (isset($_POST['acf_offer_url'])) {
+        update_field('offer_url', esc_url_raw($_POST['acf_offer_url']), $post_id);
+    }
 
     // Save the Start Time
-    update_field('start_time', sanitize_text_field($_POST['acf_start_time']), $post_id);
+    if (isset($_POST['acf_start_time'])) {
+        update_field('start_time', sanitize_text_field($_POST['acf_start_time']), $post_id);
+    }
 
     // Save the Expire Time
-    update_field('expire_time', sanitize_text_field($_POST['acf_expire_time']), $post_id);
+    if (isset($_POST['acf_expire_time'])) {
+        update_field('expire_time', sanitize_text_field($_POST['acf_expire_time']), $post_id);
+    }
 }
 add_action('save_post_question', 'wpqa_acf_save_custom_fields');
