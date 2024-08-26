@@ -2,26 +2,25 @@
 /*
 Plugin Name: WPQA ACF Integration
 Description: Integrates WPQA plugin with ACF to add custom fields to the question form.
-Version: 1.2
+Version: 1.3
 Author: Thumula Basura Suraweera
 Author URI: https://www.thumulabasura.com/wpqa-acf-integration
 License: GPLv2
 */
 
-// Hook into the WPQA form display to inject ACF fields after offer_title
-function wpqa_acf_inject_custom_fields($out, $question_sort_option, $question_sort, $sort_key, $sort_value) {
+// Hook into the WPQA form display to inject ACF fields after the offer_title
+function wpqa_acf_inject_custom_fields($out, $question_sort_option, $question_sort, $sort_key, $sort_value, $type, $question_add, $question_edit, $get_question) {
     // Ensure that we are working with the 'question' post type
-    global $post;
-    if (get_post_type($post) != 'question') {
+    if (get_post_type($get_question) != 'question') {
         return $out;
     }
 
     // Inject custom fields only after offer_title
-    if ($sort_key == "offer_title") {
+    if ($sort_key == "title_question") {
         if (function_exists('get_field')) {
-            $offer_url = get_field('offer_url', $post->ID);
-            $start_time = get_field('start_time', $post->ID);
-            $expire_time = get_field('expire_time', $post->ID);
+            $offer_url = get_field('offer_url', $get_question);
+            $start_time = get_field('start_time', $get_question);
+            $expire_time = get_field('expire_time', $get_question);
 
             // Display Offer URL field
             $out .= '<div class="wpqa_offer_url">
@@ -48,7 +47,7 @@ function wpqa_acf_inject_custom_fields($out, $question_sort_option, $question_so
 
     return $out;
 }
-add_filter('wpqa_question_sort', 'wpqa_acf_inject_custom_fields', 10, 5);
+add_filter('wpqa_question_sort', 'wpqa_acf_inject_custom_fields', 10, 8);
 
 // Save ACF fields when the question is saved
 function wpqa_acf_save_custom_fields($post_id) {
