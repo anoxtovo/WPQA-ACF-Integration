@@ -1,74 +1,69 @@
 <?php
-/*
-Plugin Name: WPQA ACF Integration
-Description: Integrates WPQA plugin with ACF to add custom fields to the question form.
-Version: 1.3
-Author: Thumula Basura Suraweera
-Author URI: https://www.thumulabasura.com/wpqa-acf-integration
-License: GPLv2
-*/
+/**
+ * Plugin Name: Custom Question Fields
+ * Description: Adds custom fields (start_time, expire_time, offer_url) to questions.
+ * Version: 1.0
+ * Author: Your Name
+ */
 
-// Hook into the WPQA form display to inject ACF fields after the offer_title
-function wpqa_acf_inject_custom_fields($out, $question_sort_option, $question_sort, $sort_key, $sort_value, $type, $question_add, $question_edit, $get_question) {
-    // Ensure that we are working with the 'question' post type
-    if (get_post_type($get_question) != 'question') {
-        return $out;
-    }
-
-    // Inject custom fields only after offer_title
-    if ($sort_key == "title_question") {
-        if (function_exists('get_field')) {
-            $offer_url = get_field('offer_url', $get_question);
-            $start_time = get_field('start_time', $get_question);
-            $expire_time = get_field('expire_time', $get_question);
-
-            // Display Offer URL field
-            $out .= '<div class="wpqa_offer_url">
-                <label for="acf_offer_url">'.esc_html__("Offer URL", "wpqa").'<span class="required">*</span></label>
-                <input type="url" name="acf_offer_url" id="acf_offer_url" class="form-control" value="'.esc_attr($offer_url).'">
-                <span class="form-description">'.esc_html__("Please enter an offer URL for the question.", "wpqa").'</span>
-            </div>';
-
-            // Display Start Time field
-            $out .= '<div class="wpqa_start_time">
-                <label for="acf_start_time">'.esc_html__("Start Time", "wpqa").'<span class="required">*</span></label>
-                <input type="datetime-local" name="acf_start_time" id="acf_start_time" class="form-control" value="'.esc_attr($start_time).'">
-                <span class="form-description">'.esc_html__("Please select a start time for the question.", "wpqa").'</span>
-            </div>';
-
-            // Display Expire Time field
-            $out .= '<div class="wpqa_expire_time">
-                <label for="acf_expire_time">'.esc_html__("Expire Time", "wpqa").'<span class="required">*</span></label>
-                <input type="datetime-local" name="acf_expire_time" id="acf_expire_time" class="form-control" value="'.esc_attr($expire_time).'">
-                <span class="form-description">'.esc_html__("Please select an expire time for the question.", "wpqa").'</span>
-            </div>';
-        }
-    }
-
-    return $out;
-}
-add_filter('wpqa_question_sort', 'wpqa_acf_inject_custom_fields', 10, 8);
-
-// Save ACF fields when the question is saved
-function wpqa_acf_save_custom_fields($post_id) {
-    // Ensure that we are working with the 'question' post type
-    if (get_post_type($post_id) != 'question') {
+// Hook to add custom fields in the form
+function add_custom_question_fields($post_id) {
+    // Ensure post type is 'question'
+    if (get_post_type($post_id) !== 'question') {
         return;
     }
 
-    // Save the Offer URL
-    if (isset($_POST['acf_offer_url'])) {
-        update_field('offer_url', esc_url_raw($_POST['acf_offer_url']), $post_id);
+    $start_time = get_post_meta($post_id, 'start_time', true);
+    $expire_time = get_post_meta($post_id, 'expire_time', true);
+    $offer_url = get_post_meta($post_id, 'offer_url', true);
+
+    echo '<div class="wpqa_start_time">
+        <label for="start_time">'.esc_html__("Start Time","wpqa").'</label>
+        <input type="datetime-local" name="start_time" id="start_time" value="'.esc_attr($start_time).'">
+    </div>';
+
+    echo '<div class="wpqa_expire_time">
+        <label for="expire_time">'.esc_html__("Expire Time","wpqa").'</label>
+        <input type="datetime-local" name="expire_time" id="expire_time" value="'.esc_attr($expire_time).'">
+    </div>';
+
+    echo '<div class="wpqa_offer_url">
+        <label for="offer_url">'.esc_html__("Offer URL","wpqa").'</label>
+        <input type="url" name="offer_url" id="offer_url" value="'.esc_attr($offer_url).'">
+    </div>';
+
+    // Include nonce for security
+    wp_nonce_field('save_custom_question_fields', 'custom_question_nonce');
+}
+add_action('add_meta_boxes', 'add_custom_question_fields');
+
+// Hook to save custom fields
+function save_custom_question_fields($post_id) {
+    // Verify nonce
+    if (!isset($_POST['custom_question_nonce']) || !wp_verify_nonce($_POST['custom_question_nonce'], 'save_custom_question_fields')) {
+        return;
     }
 
-    // Save the Start Time
-    if (isset($_POST['acf_start_time'])) {
-        update_field('start_time', sanitize_text_field($_POST['acf_start_time']), $post_id);
+    // Check user permissions
+    if (!current_user_can('edit_post', $post_id)) {
+        return;
     }
 
-    // Save the Expire Time
-    if (isset($_POST['acf_expire_time'])) {
-        update_field('expire_time', sanitize_text_field($_POST['acf_expire_time']), $post_id);
+    // Save start_time
+    if (isset($_POST['start_time'])) {
+        update_post_meta($post_id, 'start_time', sanitize_text_field($_POST['start_time']));
+    }
+
+    // Save expire_time
+    if (isset($_POST['expire_time'])) {
+        update_post_meta($post_id, 'expire_time', sanitize_text_field($_POST['expire_time']));
+    }
+
+    // Save offer_url
+    if (isset($_POST['offer_url'])) {
+        update_post_meta($post_id, 'offer_url', esc_url_raw($_POST['offer_url']));
     }
 }
-add_action('save_post_question', 'wpqa_acf_save_custom_fields');
+add_action('save_post', 'save_custom_question_fields');
+
+?>
