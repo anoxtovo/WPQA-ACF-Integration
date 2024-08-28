@@ -15,6 +15,8 @@ function wpqa_acf_integration_admin_page() {
 
             // Show success message
             echo '<div class="notice notice-success is-dismissible"><p>Settings saved successfully!</p></div>';
+        } else {
+            echo '<div class="notice notice-error is-dismissible"><p>Nonce verification failed. Please try again.</p></div>';
         }
     }
 
@@ -28,6 +30,8 @@ function wpqa_acf_integration_admin_page() {
 
             // Show success message
             echo '<div class="notice notice-success is-dismissible"><p>Field group selection saved successfully!</p></div>';
+        } else {
+            echo '<div class="notice notice-error is-dismissible"><p>Nonce verification failed. Please try again.</p></div>';
         }
     }
 

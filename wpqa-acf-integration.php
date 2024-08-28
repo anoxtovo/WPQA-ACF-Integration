@@ -8,34 +8,32 @@ Author URI: https://www.thumulabasura.com/wpqa-acf-integration
 License: GPLv2
 */
 
-// Exit if accessed directly
 if (!defined('ABSPATH')) {
     exit;
 }
 
-// Define plugin constants
 define('WPQA_ACF_INTEGRATION_VERSION', '1.4.6');
 define('WPQA_ACF_INTEGRATION_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WPQA_ACF_INTEGRATION_PLUGIN_URL', plugin_dir_url(__FILE__));
 
-// Include necessary files
 require_once WPQA_ACF_INTEGRATION_PLUGIN_DIR . 'includes/admin-page.php';
+require_once WPQA_ACF_INTEGRATION_PLUGIN_DIR . 'includes/error-handling.php';
 
-// Hook for plugin activation
-register_activation_hook(__FILE__, 'wpqa_acf_integration_activate');
-
+/**
+ * Activates the plugin and sets default options.
+ */
 function wpqa_acf_integration_activate() {
-    // Set default options on activation
     add_option('wpqa_acf_enable_integration', 0);
 }
+register_activation_hook(__FILE__, 'wpqa_acf_integration_activate');
 
-// Hook for adding admin menu
-add_action('admin_menu', 'wpqa_acf_integration_add_admin_menu');
-
+/**
+ * Adds the plugin menu to the WordPress admin.
+ */
 function wpqa_acf_integration_add_admin_menu() {
     add_menu_page(
-        'WPQA ACF Integration',
-        'WPQA ACF',
+        __('WPQA ACF Integration', 'wpqa-acf-integration'),
+        __('WPQA ACF', 'wpqa-acf-integration'),
         'manage_options',
         'wpqa-acf-integration',
         'wpqa_acf_integration_admin_page',
@@ -43,106 +41,129 @@ function wpqa_acf_integration_add_admin_menu() {
         30
     );
 }
+add_action('admin_menu', 'wpqa_acf_integration_add_admin_menu');
 
-// Enqueue scripts and styles
-add_action('admin_enqueue_scripts', 'wpqa_acf_integration_enqueue_admin_scripts');
-
+/**
+ * Enqueues admin scripts and styles.
+ *
+ * @param string $hook The current admin page.
+ */
 function wpqa_acf_integration_enqueue_admin_scripts($hook) {
-    // Load styles and scripts only on your plugin's pages
-    if ('toplevel_page_wpqa-acf-integration' !== $hook && 'wpqa-acf-integration_page_wpqa-acf-dynamic-fields' !== $hook) {
+    if ('toplevel_page_wpqa-acf-integration' !== $hook) {
         return;
     }
 
-    // Enqueue Bootstrap CSS
     wp_enqueue_style('bootstrap', WPQA_ACF_INTEGRATION_PLUGIN_URL . 'lib/css/bootstrap.min.css', array(), '5.3.0');
-
-    // Enqueue Bootstrap JS
     wp_enqueue_script('bootstrap', WPQA_ACF_INTEGRATION_PLUGIN_URL . 'lib/js/bootstrap.bundle.min.js', array('jquery'), '5.3.0', true);
-
-    // Enqueue custom CSS
     wp_enqueue_style('wpqa_acf_integration_admin', WPQA_ACF_INTEGRATION_PLUGIN_URL . 'lib/css/admin-style.css');
 }
+add_action('admin_enqueue_scripts', 'wpqa_acf_integration_enqueue_admin_scripts');
 
-// Hook for integrating ACF fields with WPQA
-add_action('wpqa_add_question_fields', 'wpqa_acf_integration_add_fields');
-
-function wpqa_acf_integration_add_fields() {
-    // Check if integration is enabled
+/**
+ * Injects ACF fields into the WPQA question form.
+ *
+ * @param string $out The existing output.
+ * @param string $type The type of form (add/edit).
+ * @param bool $question_add Whether this is an add question form.
+ * @param bool $question_edit Whether this is an edit question form.
+ * @param int|null $get_question The question ID if editing.
+ * @return string The modified output with ACF fields injected.
+ */
+function wpqa_acf_integration_inject_fields($out, $type, $question_add, $question_edit, $get_question) {
     if (get_option('wpqa_acf_enable_integration', 0)) {
-        // Retrieve the selected ACF field group key
         $selected_field_group = get_option('wpqa_acf_selected_field_group', '');
-
-        // Check if ACF is active and a field group is selected
         if (function_exists('acf_form') && !empty($selected_field_group)) {
+            ob_start();
             acf_form(array(
-                'post_id'       => 'new_post', // Use 'new_post' for new submissions or pass the post ID for edits
-                'field_groups'  => array($selected_field_group), // Use the selected ACF field group
-                'form'          => false, // Disable the form wrapper
-                'return'        => false, // Prevent redirect after submission
+                'post_id'       => 'new_post',
+                'field_groups'  => array($selected_field_group),
+                'form'          => false,
+                'return'        => false,
             ));
+            $acf_fields_output = ob_get_clean();
+            return $out . $acf_fields_output;
         }
     }
+    return $out;
 }
-
-// Inject ACF fields after the question title in WPQA form
 add_filter('wpqa_add_edit_question_after_title', 'wpqa_acf_integration_inject_fields', 10, 5);
 
-function wpqa_acf_integration_inject_fields($out, $type, $question_add, $question_edit, $get_question) {
-    ob_start();
-    wpqa_acf_integration_add_fields(); // Call the function that outputs the ACF fields
-    $acf_fields_output = ob_get_clean();
+/**
+ * Saves ACF fields when a WPQA question is added.
+ *
+ * @param int $question_id The ID of the question being saved.
+ * @param array|null $values The values being saved (if any).
+ */
+function wpqa_acf_integration_save_fields($question_id, $values = null) {
+    if (!is_numeric($question_id) || $question_id <= 0 || !get_option('wpqa_acf_enable_integration', 0)) {
+        return;
+    }
 
-    return $out . $acf_fields_output; // Append ACF fields to the existing form output
-}
+    if (!isset($_POST['acf_nonce']) || !wp_verify_nonce($_POST['acf_nonce'], 'acf_nonce')) {
+        error_log(__('ACF nonce verification failed in WPQA ACF Integration', 'wpqa-acf-integration'));
+        return;
+    }
 
-// Hook for saving ACF fields with WPQA question
-add_action('wpqa_add_question', 'wpqa_acf_integration_save_fields', 10, 2);
-
-function wpqa_acf_integration_save_fields($question_id, $values) {
-    // Check if integration is enabled
-    if (get_option('wpqa_acf_enable_integration', 0)) {
-        // Save the custom ACF fields
-        if (function_exists('acf_save_post')) {
-            acf_save_post($question_id);
-        }
+    if (function_exists('acf_save_post')) {
+        acf_save_post($question_id);
     }
 }
+add_action('wpqa_add_question', 'wpqa_acf_integration_save_fields', 10, 2);
 
-// Hook for displaying ACF fields with WPQA question
-add_action('wpqa_display_question_fields', 'wpqa_acf_integration_display_fields', 10, 1);
-
+/**
+ * Displays ACF fields for a given question.
+ *
+ * @param int $question_id The ID of the question to display fields for.
+ */
 function wpqa_acf_integration_display_fields($question_id) {
-    if (get_option('wpqa_acf_enable_integration', 0)) {
-        $offer_url = get_field('offer_url', $question_id);
-        $offer_start_date = get_field('offer_start_date', $question_id);
-        $offer_end_date = get_field('offer_end_date', $question_id);
-
-        if ($offer_url || $offer_start_date || $offer_end_date) {
+    if (get_option('wpqa_acf_enable_integration', 0) && function_exists('get_fields')) {
+        $fields = get_fields($question_id);
+        if ($fields) {
             echo '<div class="acf-fields">';
-            if ($offer_url) {
-                echo '<p><strong>Offer URL:</strong> <a href="' . esc_url($offer_url) . '">' . esc_html($offer_url) . '</a></p>';
-            }
-            if ($offer_start_date) {
-                echo '<p><strong>Offer Start Date:</strong> ' . esc_html($offer_start_date) . '</p>';
-            }
-            if ($offer_end_date) {
-                echo '<p><strong>Offer End Date:</strong> ' . esc_html($offer_end_date) . '</p>';
+            foreach ($fields as $key => $value) {
+                echo '<p><strong>' . esc_html($key) . ':</strong> ' . wp_kses_post($value) . '</p>';
             }
             echo '</div>';
         }
     }
 }
+add_action('wpqa_display_question_fields', 'wpqa_acf_integration_display_fields', 10, 1);
 
-// Dynamic Fields Management
-add_action('admin_menu', 'wpqa_acf_integration_dynamic_fields_menu');
-function wpqa_acf_integration_dynamic_fields_menu() {
-    add_submenu_page(
-        'wpqa-acf-integration',
-        'Custom Fields',
-        'Custom Fields',
-        'manage_options',
-        'wpqa-acf-dynamic-fields',
-        'wpqa_acf_integration_dynamic_fields_page'
-    );
+/**
+ * Adds custom ACF fields to WPQA fields array.
+ *
+ * @param array $fields Existing fields array.
+ * @param string $context The context in which fields are being added.
+ * @return array Modified fields array.
+ */
+function custom_wpqa_add_acf_fields($fields, $context) {
+    if (!is_array($fields)) {
+        $fields = array();
+    }
+
+    $acf_fields = array('linkurl', 'start_offer', 'expiry_offer');
+    $fields = array_merge($fields, $acf_fields);
+
+    return $fields;
 }
-?>
+add_filter('wpqa_add_user_question_fields', 'custom_wpqa_add_acf_fields', 10, 2);
+add_filter('wpqa_add_question_fields', 'custom_wpqa_add_acf_fields', 10, 2);
+
+/**
+ * Handles the title field for WPQA questions.
+ *
+ * @param array $posted Posted data.
+ * @return array Modified posted data.
+ */
+function wpqa_acf_integration_handle_title($posted) {
+    $title_from_post = isset($_POST['title']) ? sanitize_text_field($_POST['title']) : '';
+    $title_from_posted = isset($posted['title']) ? sanitize_text_field($posted['title']) : '';
+
+    if (empty($title_from_posted) && !empty($title_from_post)) {
+        $posted['title'] = $title_from_post;
+        error_log('WPQA ACF Integration: Fallback title used from $_POST.');
+    }
+
+    return $posted;
+}
+add_filter('wpqa_before_process_question', 'wpqa_acf_integration_handle_title');
